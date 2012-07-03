@@ -44,10 +44,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Newtonsoft.Json">
-      <HintPath>..\packages\Newtonsoft.Json.4.5.5\lib\sl4-windowsphone71\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.4.5.7\lib\sl4-windowsphone71\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="SignalR.Client.WP7">
-      <HintPath>..\packages\SignalR.Client.WP7.0.5.84-rc\lib\sl4-wp71\SignalR.Client.WP7.dll</HintPath>
+      <HintPath>..\packages\SignalR.Client.WP7.0.5.2\lib\sl4-wp71\SignalR.Client.WP7.dll</HintPath>
     </Reference>
     <Reference Include="System.Threading.Tasks.WP71">
       <HintPath>..\packages\System.Threading.Tasks.2.1.2\lib\sl4-wp71\System.Threading.Tasks.WP71.dll</HintPath>
@@ -65,6 +65,9 @@
     </Compile>
     <Compile Include="..\JabbR.Client\JabbRClient.cs">
       <Link>JabbRClient.cs</Link>
+    </Compile>
+    <Compile Include="..\JabbR.Client\Models\ClientMessage.cs">
+      <Link>Models\ClientMessage.cs</Link>
     </Compile>
     <Compile Include="..\JabbR.Client\Models\LogOnInfo.cs">
       <Link>Models\LogOnInfo.cs</Link>
