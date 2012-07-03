@@ -490,7 +490,7 @@ namespace JabbR.Client
 
         private Task SendCommand(string command, params object[] args)
         {
-            return _chat.Invoke("Send", String.Format("/" + command, args), null);
+            return _chat.Invoke("Send", String.Format("/" + command, args), "");
         }
     }
 }
