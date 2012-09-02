@@ -7,6 +7,7 @@ using JabbR.Client.Models;
 using SignalR.Client.Http;
 using SignalR.Client.Hubs;
 using SignalR.Client.Transports;
+using SignalR.Client;
 
 namespace JabbR.Client
 {
@@ -79,6 +80,18 @@ namespace JabbR.Client
             remove
             {
                 _connection.Closed -= value;
+            }
+        }
+
+        public event Action<StateChange> StateChanged
+        {
+            add
+            {
+                _connection.StateChanged += value;
+            }
+            remove
+            {
+                _connection.StateChanged -= value;
             }
         }
 
