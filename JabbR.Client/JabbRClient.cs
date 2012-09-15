@@ -33,7 +33,7 @@ namespace JabbR.Client
 
         public event Action<Message, string> MessageReceived;
         public event Action<IEnumerable<string>> LoggedOut;
-        public event Action<User, string> UserJoined;
+        public event Action<User, string, bool> UserJoined;
         public event Action<User, string> UserLeft;
         public event Action<string> Kicked;
         public event Action<string, string, string> PrivateMessage;
@@ -315,13 +315,13 @@ namespace JabbR.Client
                 });
             }
 
-            Action<User, string> userJoined = UserJoined;
+            Action<User, string, bool> userJoined = UserJoined;
 
             if (userJoined != null)
             {
-                _chat.On<User, string>(ClientEvents.AddUser, (user, room) =>
+                _chat.On<User, string, bool>(ClientEvents.AddUser, (user, room, isOwner) =>
                 {
-                    Execute(() => userJoined(user, room));
+                    Execute(() => userJoined(user, room, isOwner));
                 });
             }
 
