@@ -21,7 +21,7 @@ namespace JabbR.Client.Sample
                 Console.WriteLine("[{0}] {1}: {2}", message.When, message.User.Name, message.Content);
             };
 
-            client.UserJoined += (user, room) =>
+            client.UserJoined += (user, room, isOwner) =>
             {
                 Console.WriteLine("{0} joined {1}", user.Name, room);
             };
