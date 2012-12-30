@@ -4,10 +4,10 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using JabbR.Client.Models;
-using SignalR.Client.Http;
-using SignalR.Client.Hubs;
-using SignalR.Client.Transports;
-using SignalR.Client;
+using Microsoft.AspNet.SignalR.Client;
+using Microsoft.AspNet.SignalR.Client.Http;
+using Microsoft.AspNet.SignalR.Client.Hubs;
+using Microsoft.AspNet.SignalR.Client.Transports;
 
 namespace JabbR.Client
 {
@@ -27,7 +27,7 @@ namespace JabbR.Client
         {
             _url = url;
             _connection = new HubConnection(url);
-            _chat = _connection.CreateProxy("chat");
+            _chat = _connection.CreateHubProxy("chat");
             _clientTransport = transport ?? new AutoTransport(new DefaultHttpClient());
         }
 
