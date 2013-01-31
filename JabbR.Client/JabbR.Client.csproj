@@ -54,7 +54,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AuthToken.cs" />
     <Compile Include="ClientEvents.cs" />
     <Compile Include="HttpCookieJabbRTransport.cs" />
     <Compile Include="IJabbRTransport.cs" />

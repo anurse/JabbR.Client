@@ -119,6 +119,11 @@ namespace JabbR.Client
                 tcs.SetResult(logOnInfo);
             };
 
+            // Connect
+            _connection = await _transport.Connect(name, password);
+            _chat = _connection.CreateHubProxy("chat");
+
+            // Attach events
             logOn = _chat.On<IEnumerable<Room>>(ClientEvents.LogOn, rooms =>
             {
                 callback(new LogOnInfo
@@ -136,9 +141,11 @@ namespace JabbR.Client
                 });
             });
 
-            // Connect
-            _connection = await _transport.Connect(name, password);
-            _chat = _connection.CreateHubProxy("chat");
+            // Start the connection
+            await _connection.Start();
+
+            // Join JabbR
+            await _chat.Invoke("Join");
 
             return await tcs.Task;
         }
