@@ -51,14 +51,12 @@ namespace JabbR.Client
                 throw new SecurityException("Didn't get a cookie from JabbR! Ensure your User Name/Password are correct");
             }
 
-            // Create the transport
-            var transport = new AutoTransport(new DefaultHttpClient());
-
             // Create a hub connection and give it our cookie jar
-            return new HubConnection(_url.AbsoluteUri)
+            var connection = new HubConnection(_url.AbsoluteUri)
             {
                 CookieContainer = _cookieJar
             };
+            return connection;
         }
     }
 }
