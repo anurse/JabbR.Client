@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading;
@@ -13,22 +14,21 @@ namespace JabbR.Client
 {
     public class JabbRClient
     {
-        private readonly IHubProxy _chat;
-        private readonly HubConnection _connection;
-        private readonly IClientTransport _clientTransport;
-        private readonly string _url;
+        private readonly IJabbRTransport _transport;
+        private readonly Uri _url;
+        
+        private IHubProxy _chat;
+        private HubConnection _connection;
         private int _initialized;
 
-        public JabbRClient(string url)
+        public JabbRClient(Uri url)
             : this(url, null)
         { }
 
-        public JabbRClient(string url, IClientTransport transport)
+        public JabbRClient(Uri url, IJabbRTransport transport)
         {
             _url = url;
-            _connection = new HubConnection(url);
-            _chat = _connection.CreateHubProxy("chat");
-            _clientTransport = transport ?? new AutoTransport(new DefaultHttpClient());
+            _transport = transport ?? new HttpCookieJabbRTransport(url);
         }
 
         public event Action<Message, string> MessageReceived;
@@ -56,7 +56,7 @@ namespace JabbR.Client
 
         public string SourceUrl
         {
-            get { return _url; }
+            get { return _url.AbsoluteUri; }
         }
 
         public ICredentials Credentials
@@ -95,39 +95,7 @@ namespace JabbR.Client
             }
         }
 
-        public Task<LogOnInfo> Connect(string userId)
-        {
-            _chat["id"] = userId;
-
-            return DoConnect(() => _connection.Start(_clientTransport)
-                                              .Then(() => _chat.Invoke<bool>("Join")
-                                                               .Then(success =>
-                                                               {
-                                                                   if (!success)
-                                                                   {
-                                                                       throw new InvalidOperationException("Unknown user id.");
-                                                                   }
-                                                               })));
-        }
-
-        public Task<LogOnInfo> Connect(string name, string password)
-        {
-            return DoConnect(() => _connection.Start(_clientTransport)
-                                              .Then(() =>
-                                              {
-                                                  return _chat.Invoke<bool>("Join").Then(success =>
-                                                  {
-                                                      if (!success)
-                                                      {
-                                                          return SendCommand("nick {0} {1}", name, password);
-                                                      }
-
-                                                      return TaskAsyncHelper.Empty;
-                                                  });
-                                              }));
-        }
-
-        private Task<LogOnInfo> DoConnect(Func<Task> connect)
+        public async Task<LogOnInfo> Connect(string name, string password)
         {
             SubscribeToEvents();
 
@@ -168,9 +136,11 @@ namespace JabbR.Client
                 });
             });
 
-            connect().ContinueWithNotComplete(tcs);
+            // Connect
+            _connection = await _transport.Connect(name, password);
+            _chat = _connection.CreateHubProxy("chat");
 
-            return tcs.Task;
+            return await tcs.Task;
         }
 
         public Task<User> GetUserInfo()
@@ -228,9 +198,19 @@ namespace JabbR.Client
             return tcs.Task;
         }
 
+        public Task JoinRooms(IEnumerable<string> rooms)
+        {
+            return Task.WhenAll(rooms.Select(room => JoinRoom(room)));
+        }
+
         public Task LeaveRoom(string roomName)
         {
             return SendCommand("leave {0}", roomName);
+        }
+
+        public Task LeaveRooms(IEnumerable<string> rooms)
+        {
+            return Task.WhenAll(rooms.Select(room => LeaveRoom(room)));
         }
 
         public Task SetFlag(string countryCode)
