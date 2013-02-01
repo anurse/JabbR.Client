@@ -35,28 +35,30 @@ namespace JabbR.Client
             });
         }
 
-        public async Task<HubConnection> Connect(string userName, string password)
+        public Task<HubConnection> Connect(string userName, string password)
         {
             // Post the credentials to the url
-            var resp = await _client.PostAsync(_url.AbsoluteUri + AuthEndpoint, new FormUrlEncodedContent(new[] {
+            return _client.PostAsync(_url.AbsoluteUri + AuthEndpoint, new FormUrlEncodedContent(new[] {
                 new KeyValuePair<string, string>(UserNameParamName, userName),
                 new KeyValuePair<string, string>(PasswordParamName, password)
-            }));
-            resp.EnsureSuccessStatusCode();
-            
-            // Verify the cookie
-            var cookie = _cookieJar.GetCookies(_url);
-            if (cookie == null || cookie[JabbrCookieName] == null)
+            })).Then(resp =>
             {
-                throw new SecurityException("Didn't get a cookie from JabbR! Ensure your User Name/Password are correct");
-            }
+                resp.EnsureSuccessStatusCode();
 
-            // Create a hub connection and give it our cookie jar
-            var connection = new HubConnection(_url.AbsoluteUri)
-            {
-                CookieContainer = _cookieJar
-            };
-            return connection;
+                // Verify the cookie
+                var cookie = _cookieJar.GetCookies(_url);
+                if (cookie == null || cookie[JabbrCookieName] == null)
+                {
+                    throw new SecurityException("Didn't get a cookie from JabbR! Ensure your User Name/Password are correct");
+                }
+
+                // Create a hub connection and give it our cookie jar
+                var connection = new HubConnection(_url.AbsoluteUri)
+                {
+                    CookieContainer = _cookieJar
+                };
+                return TaskAsyncHelper.FromResult(connection);
+            });
         }
     }
 }

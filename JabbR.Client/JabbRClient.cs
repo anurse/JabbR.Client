@@ -95,59 +95,60 @@ namespace JabbR.Client
             }
         }
 
-        public async Task<LogOnInfo> Connect(string name, string password)
+        public Task<LogOnInfo> Connect(string name, string password)
         {
             var tcs = new TaskCompletionSource<LogOnInfo>();
 
-            IDisposable logOn = null;
-            IDisposable userCreated = null;
-
-            Action<LogOnInfo> callback = logOnInfo =>
-            {
-                if (userCreated != null)
-                {
-                    userCreated.Dispose();
-                }
-
-                if (logOn != null)
-                {
-                    logOn.Dispose();
-                }
-
-                tcs.SetResult(logOnInfo);
-            };
-
             // Connect
-            _connection = await _transport.Connect(name, password);
-            _chat = _connection.CreateHubProxy("chat");
-            SubscribeToEvents();
-
-            // Create the transport and connect
-            var transport = new AutoTransport(new DefaultHttpClient());
-            await _connection.Start(transport);
-
-            // Attach events
-            logOn = _chat.On<IEnumerable<Room>>(ClientEvents.LogOn, rooms =>
+            return _transport.Connect(name, password).Then(connection =>
             {
-                callback(new LogOnInfo
+                _connection = connection;
+                _chat = _connection.CreateHubProxy("chat");
+                SubscribeToEvents();
+
+                // Create the transport and connect
+                var transport = new AutoTransport(new DefaultHttpClient());
+                return _connection.Start(transport);
+            }).Then(() => {
+                IDisposable logOn = null;
+                IDisposable userCreated = null;
+
+                Action<LogOnInfo> callback = logOnInfo =>
                 {
-                    Rooms = rooms,
-                    UserId = (string)_chat["id"]
-                });
-            });
+                    if (userCreated != null)
+                    {
+                        userCreated.Dispose();
+                    }
 
-            userCreated = _chat.On(ClientEvents.UserCreated, () =>
-            {
-                callback(new LogOnInfo
+                    if (logOn != null)
+                    {
+                        logOn.Dispose();
+                    }
+
+                    tcs.SetResult(logOnInfo);
+                };
+
+                // Attach events
+                logOn = _chat.On<IEnumerable<Room>>(ClientEvents.LogOn, rooms =>
                 {
-                    UserId = (string)_chat["id"]
+                    callback(new LogOnInfo
+                    {
+                        Rooms = rooms,
+                        UserId = (string)_chat["id"]
+                    });
                 });
-            });
 
-            // Join JabbR
-            await _chat.Invoke("Join");
+                userCreated = _chat.On(ClientEvents.UserCreated, () =>
+                {
+                    callback(new LogOnInfo
+                    {
+                        UserId = (string)_chat["id"]
+                    });
+                });
 
-            return await tcs.Task;
+                // Join JabbR
+                return _chat.Invoke("Join");
+            }).Then(() => tcs.Task);
         }
 
         public Task<User> GetUserInfo()
@@ -205,19 +206,9 @@ namespace JabbR.Client
             return tcs.Task;
         }
 
-        public Task JoinRooms(IEnumerable<string> rooms)
-        {
-            return Task.WhenAll(rooms.Select(room => JoinRoom(room)));
-        }
-
         public Task LeaveRoom(string roomName)
         {
             return SendCommand("leave {0}", roomName);
-        }
-
-        public Task LeaveRooms(IEnumerable<string> rooms)
-        {
-            return Task.WhenAll(rooms.Select(room => LeaveRoom(room)));
         }
 
         public Task SetFlag(string countryCode)
