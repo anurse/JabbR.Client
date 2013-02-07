@@ -13,7 +13,7 @@ namespace JabbR.Client.Sample
             string userName = "testclient";
             string password = "password";
 
-            var client = new JabbRClient(server);
+            var client = new JabbRClient(new Uri(server));
 
             // Subscribe to new messages
             client.MessageReceived += (message, room) =>
