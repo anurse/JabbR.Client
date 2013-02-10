@@ -17,5 +17,6 @@ namespace JabbR.Client.Models
         public string Flag { get; set; }
         public string Country { get; set; }
         public DateTime LastActivity { get; set; }
+        public bool IsAdmin { get; set; }
     }
 }
