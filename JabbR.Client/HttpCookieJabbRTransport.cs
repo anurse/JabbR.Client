@@ -1,14 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Net.Http;
 using System.Security;
-using System.Text;
 using System.Threading.Tasks;
-using Microsoft.AspNet.SignalR.Client.Http;
+
 using Microsoft.AspNet.SignalR.Client.Hubs;
-using Microsoft.AspNet.SignalR.Client.Transports;
 
 namespace JabbR.Client
 {
@@ -20,7 +15,6 @@ namespace JabbR.Client
         private const string PasswordParamName = "password";
 
         private Uri _url;
-        private HttpClient _client;
         private CookieContainer _cookieJar;
 
         public HttpCookieJabbRTransport(Uri url)
@@ -28,37 +22,46 @@ namespace JabbR.Client
             _url = url;
 
             _cookieJar = new CookieContainer();
-            _client = new HttpClient(new HttpClientHandler()
-            {
-                UseCookies = true,
-                CookieContainer = _cookieJar
-            });
         }
 
         public Task<HubConnection> Connect(string userName, string password)
         {
-            // Post the credentials to the url
-            return _client.PostAsync(_url.AbsoluteUri + AuthEndpoint, new FormUrlEncodedContent(new[] {
-                new KeyValuePair<string, string>(UserNameParamName, userName),
-                new KeyValuePair<string, string>(PasswordParamName, password)
-            })).Then(resp =>
+            var content = String.Format("{0}={1}&{2}={3}", UserNameParamName, Uri.EscapeUriString(userName), PasswordParamName, Uri.EscapeUriString(password));
+            var contentBytes = System.Text.Encoding.ASCII.GetBytes(content);
+
+            var request = (HttpWebRequest) WebRequest.Create(_url.AbsoluteUri + AuthEndpoint);
+            request.CookieContainer = _cookieJar;
+            request.Method = "POST";
+            request.ContentType = "application/x-www-form-urlencoded";
+            request.ContentLength = contentBytes.Length;
+
+            using (var stream = request.GetRequestStream())
             {
-                resp.EnsureSuccessStatusCode();
+                stream.Write(contentBytes, 0, contentBytes.Length);
+            }
 
-                // Verify the cookie
-                var cookie = _cookieJar.GetCookies(_url);
-                if (cookie == null || cookie[JabbrCookieName] == null)
-                {
-                    throw new SecurityException("Didn't get a cookie from JabbR! Ensure your User Name/Password are correct");
-                }
+            var response = (HttpWebResponse) request.GetResponse();
 
-                // Create a hub connection and give it our cookie jar
-                var connection = new HubConnection(_url.AbsoluteUri)
-                {
-                    CookieContainer = _cookieJar
-                };
-                return TaskAsyncHelper.FromResult(connection);
-            });
+            HttpStatusCode respStatusCode = response.StatusCode;
+            if (respStatusCode < HttpStatusCode.OK || respStatusCode > (HttpStatusCode) 299)
+            {
+                throw new WebException("The call to the server was not successful.");
+            }
+
+            // Verify the cookie
+            var cookie = _cookieJar.GetCookies(_url);
+            if (cookie == null || cookie[JabbrCookieName] == null)
+            {
+                throw new SecurityException("Didn't get a cookie from JabbR! Ensure your User Name/Password are correct");
+            }
+
+            // Create a hub connection and give it our cookie jar
+            var connection = new HubConnection(_url.AbsoluteUri)
+            {
+                CookieContainer = _cookieJar
+            };
+
+            return TaskAsyncHelper.FromResult(connection);
         }
     }
 }
