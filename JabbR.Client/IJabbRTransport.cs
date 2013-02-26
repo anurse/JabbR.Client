@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
+
 using Microsoft.AspNet.SignalR.Client.Hubs;
-using Microsoft.AspNet.SignalR.Client.Transports;
 
 namespace JabbR.Client
 {

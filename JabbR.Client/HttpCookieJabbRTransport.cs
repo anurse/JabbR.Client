@@ -14,8 +14,8 @@ namespace JabbR.Client
         private const string UserNameParamName = "username";
         private const string PasswordParamName = "password";
 
-        private Uri _url;
-        private CookieContainer _cookieJar;
+        private readonly Uri _url;
+        private readonly CookieContainer _cookieJar;
 
         public HttpCookieJabbRTransport(Uri url)
         {

@@ -1,10 +1,11 @@
 ﻿using System;
-using System.Linq;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+
 using JabbR.Client.Models;
+
 using Microsoft.AspNet.SignalR.Client;
 using Microsoft.AspNet.SignalR.Client.Http;
 using Microsoft.AspNet.SignalR.Client.Hubs;
@@ -12,7 +13,7 @@ using Microsoft.AspNet.SignalR.Client.Transports;
 
 namespace JabbR.Client
 {
-    public class JabbRClient
+    public class JabbRClient : IJabbRClient
     {
         private readonly IJabbRTransport _transport;
         private readonly Uri _url;
