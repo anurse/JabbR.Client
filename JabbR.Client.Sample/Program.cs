@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,7 +16,10 @@ namespace JabbR.Client.Sample
             string userName = "testclient";
             string password = "password";
 
-            var client = new JabbRClient(new Uri(server));
+            // this might be needed in some cases
+            //ServicePointManager.DefaultConnectionLimit = 100;
+
+            var client = new JabbRClient(server);
 
             // Subscribe to new messages
             client.MessageReceived += (message, room) =>

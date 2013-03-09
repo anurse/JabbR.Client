@@ -9,15 +9,14 @@ namespace JabbR.Client
 {
     public class HttpCookieJabbRTransport : IJabbRTransport
     {
-        private const string AuthEndpoint = "account/login";
         private const string JabbrCookieName = "jabbr.userToken";
         private const string UserNameParamName = "username";
         private const string PasswordParamName = "password";
 
-        private readonly Uri _url;
+        private readonly string _url;
         private readonly CookieContainer _cookieJar;
 
-        public HttpCookieJabbRTransport(Uri url)
+        public HttpCookieJabbRTransport(string url)
         {
             _url = url;
 
@@ -29,7 +28,12 @@ namespace JabbR.Client
             var content = String.Format("{0}={1}&{2}={3}", UserNameParamName, Uri.EscapeUriString(userName), PasswordParamName, Uri.EscapeUriString(password));
             var contentBytes = System.Text.Encoding.ASCII.GetBytes(content);
 
-            var request = (HttpWebRequest) WebRequest.Create(_url.AbsoluteUri + AuthEndpoint);
+            var authUri = new UriBuilder(_url)
+            {
+                Path = "account/login"
+            };
+
+            var request = (HttpWebRequest) WebRequest.Create(authUri.Uri);
             request.CookieContainer = _cookieJar;
             request.Method = "POST";
             request.ContentType = "application/x-www-form-urlencoded";
@@ -49,14 +53,14 @@ namespace JabbR.Client
             }
 
             // Verify the cookie
-            var cookie = _cookieJar.GetCookies(_url);
+            var cookie = _cookieJar.GetCookies(new Uri(_url));
             if (cookie == null || cookie[JabbrCookieName] == null)
             {
                 throw new SecurityException("Didn't get a cookie from JabbR! Ensure your User Name/Password are correct");
             }
 
             // Create a hub connection and give it our cookie jar
-            var connection = new HubConnection(_url.AbsoluteUri)
+            var connection = new HubConnection(_url)
             {
                 CookieContainer = _cookieJar
             };

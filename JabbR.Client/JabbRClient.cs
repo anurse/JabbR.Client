@@ -16,19 +16,18 @@ namespace JabbR.Client
     public class JabbRClient : IJabbRClient
     {
         private readonly IJabbRTransport _transport;
-        private readonly Uri _url;
 
         private IHubProxy _chat;
         private HubConnection _connection;
         private int _initialized;
 
-        public JabbRClient(Uri url)
+        public JabbRClient(string url)
             : this(url, null)
         { }
 
-        public JabbRClient(Uri url, IJabbRTransport transport)
+        public JabbRClient(string url, IJabbRTransport transport)
         {
-            _url = url;
+            SourceUrl = url;
             _transport = transport ?? new HttpCookieJabbRTransport(url);
         }
 
@@ -55,10 +54,7 @@ namespace JabbR.Client
         public event Action<User> UserActivityChanged;
         public event Action<IEnumerable<User>> UsersInactive;
 
-        public string SourceUrl
-        {
-            get { return _url.AbsoluteUri; }
-        }
+        public string SourceUrl { get; private set; }
 
         public ICredentials Credentials
         {
