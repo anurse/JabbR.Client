@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Security;
+using System.Text;
 using System.Threading.Tasks;
 
 using Microsoft.AspNet.SignalR.Client.Hubs;
@@ -9,10 +10,6 @@ namespace JabbR.Client
 {
     public class HttpCookieJabbRTransport : IJabbRTransport
     {
-        private const string JabbrCookieName = "jabbr.userToken";
-        private const string UserNameParamName = "username";
-        private const string PasswordParamName = "password";
-
         private readonly string _url;
         private readonly CookieContainer _cookieJar;
 
@@ -25,8 +22,8 @@ namespace JabbR.Client
 
         public Task<HubConnection> Connect(string userName, string password)
         {
-            var content = String.Format("{0}={1}&{2}={3}", UserNameParamName, Uri.EscapeUriString(userName), PasswordParamName, Uri.EscapeUriString(password));
-            var contentBytes = System.Text.Encoding.ASCII.GetBytes(content);
+            var content = String.Format("username={0}&password={1}", Uri.EscapeUriString(userName), Uri.EscapeUriString(password));
+            var contentBytes = Encoding.ASCII.GetBytes(content);
 
             var authUri = new UriBuilder(_url)
             {
@@ -49,12 +46,12 @@ namespace JabbR.Client
             HttpStatusCode respStatusCode = response.StatusCode;
             if (respStatusCode < HttpStatusCode.OK || respStatusCode > (HttpStatusCode) 299)
             {
-                throw new WebException("The call to the server was not successful.");
+                throw new WebException(String.Format("Response status code does not indicate success: {0}", respStatusCode));
             }
 
             // Verify the cookie
             var cookie = _cookieJar.GetCookies(new Uri(_url));
-            if (cookie == null || cookie[JabbrCookieName] == null)
+            if (cookie == null || cookie["jabbr.userToken"] == null)
             {
                 throw new SecurityException("Didn't get a cookie from JabbR! Ensure your User Name/Password are correct");
             }
