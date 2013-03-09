@@ -1,5 +1,7 @@
 ﻿using System;
-using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
+
 using JabbR.Client.Models;
 
 namespace JabbR.Client.Sample
@@ -110,14 +112,14 @@ namespace JabbR.Client.Sample
                 client.Send("Hello world", roomName);
 
                 Console.WriteLine("Press any key to leave the room and disconnect");
-                Console.Read();
-                client.LeaveRoom(roomName).ContinueWith(_ =>
-                {
-                    client.Disconnect();
-                });
             });
 
-            Console.ReadKey();
+            Task.Factory.StartNew(() => SpinWait.SpinUntil(() => Console.KeyAvailable)).Wait();
+
+            client.LeaveRoom(roomName).ContinueWith(_ =>
+            {
+                client.Disconnect();
+            });
         }
     }
 }
