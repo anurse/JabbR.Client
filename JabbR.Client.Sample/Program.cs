@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Net;
 using System.Threading;
-using System.Threading.Tasks;
 
 using JabbR.Client.Models;
 
@@ -42,6 +41,8 @@ namespace JabbR.Client.Sample
                 Console.WriteLine("*PRIVATE* {0} -> {1} ", from, message);
             };
 
+            var reset = new ManualResetEventSlim();
+
             // Connect to chat
             client.Connect(userName, password).ContinueWith(task =>
             {
@@ -67,7 +68,7 @@ namespace JabbR.Client.Sample
                 Console.WriteLine(myInfo.Status);
                 Console.WriteLine(myInfo.Country);
 
-                
+
                 client.JoinRoom(roomName);
 
                 Console.WriteLine();
@@ -116,14 +117,16 @@ namespace JabbR.Client.Sample
                 client.Send("Hello world", roomName);
 
                 Console.WriteLine("Press any key to leave the room and disconnect");
+                Console.Read();
+                client.LeaveRoom(roomName).ContinueWith(_ =>
+                {
+                    client.Disconnect();
+                });
+
+                reset.Set();
             });
 
-            Task.Factory.StartNew(() => SpinWait.SpinUntil(() => Console.KeyAvailable)).Wait();
-
-            client.LeaveRoom(roomName).ContinueWith(_ =>
-            {
-                client.Disconnect();
-            });
+            reset.Wait();
         }
     }
 }
