@@ -41,9 +41,12 @@ namespace JabbR.Client
                 stream.Write(contentBytes, 0, contentBytes.Length);
             }
 
-            var response = (HttpWebResponse) request.GetResponse();
+            HttpStatusCode respStatusCode;
+            using (var response = (HttpWebResponse) request.GetResponse())
+            {
+                respStatusCode = response.StatusCode;
+            }
 
-            HttpStatusCode respStatusCode = response.StatusCode;
             if (respStatusCode < HttpStatusCode.OK || respStatusCode > (HttpStatusCode) 299)
             {
                 throw new WebException(String.Format("Response status code does not indicate success: {0}", respStatusCode));
