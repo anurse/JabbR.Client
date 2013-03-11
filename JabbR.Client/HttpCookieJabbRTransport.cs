@@ -8,7 +8,7 @@ using Microsoft.AspNet.SignalR.Client.Hubs;
 
 namespace JabbR.Client
 {
-    public class HttpCookieJabbRTransport : IJabbRTransport
+    public class HttpCookieJabbRTransport : IAuthenticationProvider
     {
         private readonly string _url;
         private readonly CookieContainer _cookieJar;

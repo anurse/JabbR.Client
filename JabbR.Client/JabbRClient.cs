@@ -13,7 +13,7 @@ namespace JabbR.Client
 {
     public class JabbRClient : IJabbRClient
     {
-        private readonly IJabbRTransport _authenticationProvider;
+        private readonly IAuthenticationProvider _authenticationProvider;
         private readonly IClientTransport _transport;
 
         private IHubProxy _chat;
@@ -24,7 +24,7 @@ namespace JabbR.Client
             : this(url, authenticationProvider: null, transport: new AutoTransport(new DefaultHttpClient()))
         { }
 
-        public JabbRClient(string url, IJabbRTransport authenticationProvider, IClientTransport transport)
+        public JabbRClient(string url, IAuthenticationProvider authenticationProvider, IClientTransport transport)
         {
             SourceUrl = url;
             _authenticationProvider = authenticationProvider ?? new HttpCookieJabbRTransport(url);
@@ -94,59 +94,61 @@ namespace JabbR.Client
 
         public Task<LogOnInfo> Connect(string name, string password)
         {
-            var tcs = new TaskCompletionSource<LogOnInfo>();
+            var taskCompletionSource = new TaskCompletionSource<LogOnInfo>();
 
             _authenticationProvider.Connect(name, password)
-                      .Then(connection =>
-                      {
-                          _connection = connection;
-                          _chat = _connection.CreateHubProxy("chat");
+                .Then(connection =>
+                {
+                    _connection = connection;
+                    _chat = _connection.CreateHubProxy("chat");
 
-                          SubscribeToEvents();
+                    SubscribeToEvents();
 
-                          return _connection.Start(_transport);
-                      })
-                      .Then(() =>
-                      {
-                          IDisposable logOn = null;
+                    return _connection.Start(_transport);
+                })
+                .Then(tcs => LogOn(tcs), taskCompletionSource)
+                .Catch(ex => taskCompletionSource.TrySetException(ex));
 
-                          Action<LogOnInfo> callback = logOnInfo =>
-                          {
-                              if (logOn != null)
-                              {
-                                  logOn.Dispose();
-                              }
+            return taskCompletionSource.Task;
+        }
 
-                              tcs.TrySetResult(logOnInfo);
-                          };
+        private void LogOn(TaskCompletionSource<LogOnInfo> tcs)
+        {
+            IDisposable logOn = null;
 
-                          // Wait for the logOn callback to get triggered
-                          logOn = _chat.On<IEnumerable<Room>>(ClientEvents.LogOn, rooms =>
-                          {
-                              callback(new LogOnInfo
-                              {
-                                  Rooms = rooms,
-                                  UserId = (string)_chat["id"]
-                              });
-                          });
+            Action<LogOnInfo> callback = logOnInfo =>
+            {
+                if (logOn != null)
+                {
+                    logOn.Dispose();
+                }
 
-                          // Join JabbR
-                          _chat.Invoke("Join").ContinueWith(task =>
-                          {
-                              if (task.IsFaulted)
-                              {
-                                  tcs.TrySetUnwrappedException(task.Exception);
-                              }
-                              else if (task.IsCanceled)
-                              {
-                                  tcs.TrySetCanceled();
-                              }
-                          },
-                          TaskContinuationOptions.NotOnRanToCompletion);
-                      })
-                      .Catch(ex => tcs.TrySetException(ex));
+                tcs.TrySetResult(logOnInfo);
+            };
 
-            return tcs.Task;
+            // Wait for the logOn callback to get triggered
+            logOn = _chat.On<IEnumerable<Room>>(ClientEvents.LogOn, rooms =>
+            {
+                callback(new LogOnInfo
+                {
+                    Rooms = rooms,
+                    UserId = (string)_chat["id"]
+                });
+            });
+
+            // Join JabbR
+            _chat.Invoke("Join").ContinueWith(task =>
+            {
+                if (task.IsFaulted)
+                {
+                    tcs.TrySetUnwrappedException(task.Exception);
+                }
+                else if (task.IsCanceled)
+                {
+                    tcs.TrySetCanceled();
+                }
+            },
+            TaskContinuationOptions.NotOnRanToCompletion);
         }
 
         public Task<User> GetUserInfo()
