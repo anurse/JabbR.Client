@@ -10,13 +10,13 @@ namespace JabbR.Client.Sample
     {
         static void Main(string[] args)
         {
-            string server = "http://jabbr-staging.apphb.com/";
+            string server = "https://jabbr-staging.apphb.com/";
             string roomName = "test";
             string userName = "testclient";
             string password = "password";
 
             // this might be needed in some cases
-            //ServicePointManager.DefaultConnectionLimit = 100;
+            ServicePointManager.DefaultConnectionLimit = 100;
 
             var client = new JabbRClient(server);
 
@@ -41,13 +41,12 @@ namespace JabbR.Client.Sample
                 Console.WriteLine("*PRIVATE* {0} -> {1} ", from, message);
             };
 
-            var reset = new ManualResetEventSlim();
+            var wh = new ManualResetEventSlim();
 
             // Connect to chat
             client.Connect(userName, password).ContinueWith(task =>
             {
                 LogOnInfo info = task.Result;
-
 
                 Console.WriteLine("Logged on successfully. You are currently in the following rooms:");
                 foreach (var room in info.Rooms)
@@ -67,11 +66,6 @@ namespace JabbR.Client.Sample
                 Console.WriteLine(myInfo.LastActivity);
                 Console.WriteLine(myInfo.Status);
                 Console.WriteLine(myInfo.Country);
-
-
-                client.JoinRoom(roomName);
-
-                Console.WriteLine();
 
                 // Join a room called test
                 client.JoinRoom(roomName).ContinueWith(_ =>
@@ -97,7 +91,6 @@ namespace JabbR.Client.Sample
                                 client.SendPrivateMessage(u.Name, "hey there, this is private right?");
                             }
                         }
-
                     });
                 });
 
@@ -117,16 +110,18 @@ namespace JabbR.Client.Sample
                 client.Send("Hello world", roomName);
 
                 Console.WriteLine("Press any key to leave the room and disconnect");
+                
                 Console.Read();
+  
                 client.LeaveRoom(roomName).ContinueWith(_ =>
                 {
                     client.Disconnect();
-                });
 
-                reset.Set();
+                    wh.Set();
+                });
             });
 
-            reset.Wait();
+            wh.Wait();
         }
     }
 }
