@@ -5,8 +5,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JabbR.Client", "JabbR.Clien
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JabbR.Client.Sample", "JabbR.Client.Sample\JabbR.Client.Sample.csproj", "{E8AA84F5-7283-4CA3-A679-901EF0EFB0D5}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{9AAFE843-81B4-4C3C-AA85-E2AADD172A0D}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{03DC5F44-184E-48B3-BA80-CF98970E621E}"
 	ProjectSection(SolutionItems) = preProject
+		.nuget\NuGet.Config = .nuget\NuGet.Config
 		.nuget\NuGet.exe = .nuget\NuGet.exe
 		.nuget\NuGet.targets = .nuget\NuGet.targets
 	EndProjectSection
