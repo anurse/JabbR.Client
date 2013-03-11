@@ -3,9 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-
 using JabbR.Client.Models;
-
 using Microsoft.AspNet.SignalR.Client;
 using Microsoft.AspNet.SignalR.Client.Http;
 using Microsoft.AspNet.SignalR.Client.Hubs;
@@ -15,20 +13,22 @@ namespace JabbR.Client
 {
     public class JabbRClient : IJabbRClient
     {
-        private readonly IJabbRTransport _transport;
+        private readonly IJabbRTransport _authenticationProvider;
+        private readonly IClientTransport _transport;
 
         private IHubProxy _chat;
         private HubConnection _connection;
         private int _initialized;
 
         public JabbRClient(string url)
-            : this(url, null)
+            : this(url, authenticationProvider: null, transport: new AutoTransport(new DefaultHttpClient()))
         { }
 
-        public JabbRClient(string url, IJabbRTransport transport)
+        public JabbRClient(string url, IJabbRTransport authenticationProvider, IClientTransport transport)
         {
             SourceUrl = url;
-            _transport = transport ?? new HttpCookieJabbRTransport(url);
+            _authenticationProvider = authenticationProvider ?? new HttpCookieJabbRTransport(url);
+            _transport = transport;
         }
 
         public event Action<Message, string> MessageReceived;
@@ -96,56 +96,57 @@ namespace JabbR.Client
         {
             var tcs = new TaskCompletionSource<LogOnInfo>();
 
-            // Connect
-            return _transport.Connect(name, password).Then(connection =>
-            {
-                _connection = connection;
-                _chat = _connection.CreateHubProxy("chat");
-                SubscribeToEvents();
+            _authenticationProvider.Connect(name, password)
+                      .Then(connection =>
+                      {
+                          _connection = connection;
+                          _chat = _connection.CreateHubProxy("chat");
 
-                // Create the transport and connect
-                var transport = new AutoTransport(new DefaultHttpClient());
-                return _connection.Start(transport);
-            }).Then(() => {
-                IDisposable logOn = null;
-                IDisposable userCreated = null;
+                          SubscribeToEvents();
 
-                Action<LogOnInfo> callback = logOnInfo =>
-                {
-                    if (userCreated != null)
-                    {
-                        userCreated.Dispose();
-                    }
+                          return _connection.Start(_transport);
+                      })
+                      .Then(() =>
+                      {
+                          IDisposable logOn = null;
 
-                    if (logOn != null)
-                    {
-                        logOn.Dispose();
-                    }
+                          Action<LogOnInfo> callback = logOnInfo =>
+                          {
+                              if (logOn != null)
+                              {
+                                  logOn.Dispose();
+                              }
 
-                    tcs.SetResult(logOnInfo);
-                };
+                              tcs.TrySetResult(logOnInfo);
+                          };
 
-                // Attach events
-                logOn = _chat.On<IEnumerable<Room>>(ClientEvents.LogOn, rooms =>
-                {
-                    callback(new LogOnInfo
-                    {
-                        Rooms = rooms,
-                        UserId = (string)_chat["id"]
-                    });
-                });
+                          // Wait for the logOn callback to get triggered
+                          logOn = _chat.On<IEnumerable<Room>>(ClientEvents.LogOn, rooms =>
+                          {
+                              callback(new LogOnInfo
+                              {
+                                  Rooms = rooms,
+                                  UserId = (string)_chat["id"]
+                              });
+                          });
 
-                userCreated = _chat.On(ClientEvents.UserCreated, () =>
-                {
-                    callback(new LogOnInfo
-                    {
-                        UserId = (string)_chat["id"]
-                    });
-                });
+                          // Join JabbR
+                          _chat.Invoke("Join").ContinueWith(task =>
+                          {
+                              if (task.IsFaulted)
+                              {
+                                  tcs.TrySetUnwrappedException(task.Exception);
+                              }
+                              else if (task.IsCanceled)
+                              {
+                                  tcs.TrySetCanceled();
+                              }
+                          },
+                          TaskContinuationOptions.NotOnRanToCompletion);
+                      })
+                      .Catch(ex => tcs.TrySetException(ex));
 
-                // Join JabbR
-                return _chat.Invoke("Join");
-            }).Then(() => tcs.Task);
+            return tcs.Task;
         }
 
         public Task<User> GetUserInfo()
@@ -226,11 +227,6 @@ namespace JabbR.Client
         public Task Kick(string userName, string roomName)
         {
             return SendCommand("kick {0} {1}", userName, roomName);
-        }
-
-        public Task ChangeName(string oldName, string newName)
-        {
-            return SendCommand("nick {0}", newName);
         }
 
         public Task<bool> CheckStatus()

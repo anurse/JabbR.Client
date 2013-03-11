@@ -2,9 +2,7 @@
 using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
-
 using JabbR.Client.Models;
-
 using Microsoft.AspNet.SignalR.Client;
 
 namespace JabbR.Client
@@ -49,7 +47,6 @@ namespace JabbR.Client
         Task SetNote(string noteText);
         Task SendPrivateMessage(string userName, string message);
         Task Kick(string userName, string roomName);
-        Task ChangeName(string oldName, string newName);
         Task<bool> CheckStatus();
         Task SetTyping(string roomName);
         Task<IEnumerable<Message>> GetPreviousMessages(string fromId);

@@ -7,7 +7,6 @@
         public static readonly string AddUser = "addUser";
         public static readonly string Leave = "leave";
         public static readonly string LogOn = "logOn";
-        public static readonly string UserCreated = "userCreated";
         public static readonly string LogOut = "logOut";
         public static readonly string Kick = "kick";
         public static readonly string UpdateRoomCount = "updateRoomCount";
