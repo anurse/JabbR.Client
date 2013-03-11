@@ -8,16 +8,13 @@ using Microsoft.AspNet.SignalR.Client.Hubs;
 
 namespace JabbR.Client
 {
-    public class HttpCookieJabbRTransport : IAuthenticationProvider
+    public class DefaultAuthenticationProvider : IAuthenticationProvider
     {
         private readonly string _url;
-        private readonly CookieContainer _cookieJar;
 
-        public HttpCookieJabbRTransport(string url)
+        public DefaultAuthenticationProvider(string url)
         {
             _url = url;
-
-            _cookieJar = new CookieContainer();
         }
 
         public Task<HubConnection> Connect(string userName, string password)
@@ -30,8 +27,9 @@ namespace JabbR.Client
                 Path = "account/login"
             };
 
+            var cookieJar = new CookieContainer();
             var request = (HttpWebRequest) WebRequest.Create(authUri.Uri);
-            request.CookieContainer = _cookieJar;
+            request.CookieContainer = cookieJar;
             request.Method = "POST";
             request.ContentType = "application/x-www-form-urlencoded";
             request.ContentLength = contentBytes.Length;
@@ -53,7 +51,7 @@ namespace JabbR.Client
             }
 
             // Verify the cookie
-            var cookie = _cookieJar.GetCookies(new Uri(_url));
+            var cookie = cookieJar.GetCookies(new Uri(_url));
             if (cookie == null || cookie["jabbr.userToken"] == null)
             {
                 throw new SecurityException("Didn't get a cookie from JabbR! Ensure your User Name/Password are correct");
@@ -62,7 +60,7 @@ namespace JabbR.Client
             // Create a hub connection and give it our cookie jar
             var connection = new HubConnection(_url)
             {
-                CookieContainer = _cookieJar
+                CookieContainer = cookieJar
             };
 
             return TaskAsyncHelper.FromResult(connection);

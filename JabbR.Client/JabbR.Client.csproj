@@ -52,7 +52,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ClientEvents.cs" />
-    <Compile Include="HttpCookieJabbRTransport.cs" />
+    <Compile Include="DefaultAuthenticationProvider.cs" />
     <Compile Include="IJabbRClient.cs" />
     <Compile Include="IAuthenticationProvider.cs" />
     <Compile Include="JabbRClient.cs" />

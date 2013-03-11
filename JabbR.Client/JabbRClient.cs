@@ -27,7 +27,7 @@ namespace JabbR.Client
         public JabbRClient(string url, IAuthenticationProvider authenticationProvider, IClientTransport transport)
         {
             SourceUrl = url;
-            _authenticationProvider = authenticationProvider ?? new HttpCookieJabbRTransport(url);
+            _authenticationProvider = authenticationProvider ?? new DefaultAuthenticationProvider(url);
             _transport = transport;
         }
 

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Net;
 using System.Threading;
-
 using JabbR.Client.Models;
 
 namespace JabbR.Client.Sample
