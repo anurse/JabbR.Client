@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+
 using JabbR.Client.Models;
+
 using Microsoft.AspNet.SignalR.Client;
 using Microsoft.AspNet.SignalR.Client.Http;
 using Microsoft.AspNet.SignalR.Client.Hubs;
@@ -11,24 +13,22 @@ using Microsoft.AspNet.SignalR.Client.Transports;
 
 namespace JabbR.Client
 {
-    public class JabbRClient
+    public class JabbRClient : IJabbRClient
     {
-        private readonly IHubProxy _chat;
-        private readonly HubConnection _connection;
-        private readonly IClientTransport _clientTransport;
-        private readonly string _url;
+        private readonly IJabbRTransport _transport;
+
+        private IHubProxy _chat;
+        private HubConnection _connection;
         private int _initialized;
 
         public JabbRClient(string url)
             : this(url, null)
         { }
 
-        public JabbRClient(string url, IClientTransport transport)
+        public JabbRClient(string url, IJabbRTransport transport)
         {
-            _url = url;
-            _connection = new HubConnection(url);
-            _chat = _connection.CreateHubProxy("chat");
-            _clientTransport = transport ?? new AutoTransport(new DefaultHttpClient());
+            SourceUrl = url;
+            _transport = transport ?? new HttpCookieJabbRTransport(url);
         }
 
         public event Action<Message, string> MessageReceived;
@@ -54,10 +54,7 @@ namespace JabbR.Client
         public event Action<User> UserActivityChanged;
         public event Action<IEnumerable<User>> UsersInactive;
 
-        public string SourceUrl
-        {
-            get { return _url; }
-        }
+        public string SourceUrl { get; private set; }
 
         public ICredentials Credentials
         {
@@ -95,82 +92,60 @@ namespace JabbR.Client
             }
         }
 
-        public Task<LogOnInfo> Connect(string userId)
-        {
-            _chat["id"] = userId;
-
-            return DoConnect(() => _connection.Start(_clientTransport)
-                                              .Then(() => _chat.Invoke<bool>("Join")
-                                                               .Then(success =>
-                                                               {
-                                                                   if (!success)
-                                                                   {
-                                                                       throw new InvalidOperationException("Unknown user id.");
-                                                                   }
-                                                               })));
-        }
-
         public Task<LogOnInfo> Connect(string name, string password)
         {
-            return DoConnect(() => _connection.Start(_clientTransport)
-                                              .Then(() =>
-                                              {
-                                                  return _chat.Invoke<bool>("Join").Then(success =>
-                                                  {
-                                                      if (!success)
-                                                      {
-                                                          return SendCommand("nick {0} {1}", name, password);
-                                                      }
-
-                                                      return TaskAsyncHelper.Empty;
-                                                  });
-                                              }));
-        }
-
-        private Task<LogOnInfo> DoConnect(Func<Task> connect)
-        {
-            SubscribeToEvents();
-
             var tcs = new TaskCompletionSource<LogOnInfo>();
 
-            IDisposable logOn = null;
-            IDisposable userCreated = null;
-
-            Action<LogOnInfo> callback = logOnInfo =>
+            // Connect
+            return _transport.Connect(name, password).Then(connection =>
             {
-                if (userCreated != null)
-                {
-                    userCreated.Dispose();
-                }
+                _connection = connection;
+                _chat = _connection.CreateHubProxy("chat");
+                SubscribeToEvents();
 
-                if (logOn != null)
-                {
-                    logOn.Dispose();
-                }
+                // Create the transport and connect
+                var transport = new AutoTransport(new DefaultHttpClient());
+                return _connection.Start(transport);
+            }).Then(() => {
+                IDisposable logOn = null;
+                IDisposable userCreated = null;
 
-                tcs.SetResult(logOnInfo);
-            };
-
-            logOn = _chat.On<IEnumerable<Room>>(ClientEvents.LogOn, rooms =>
-            {
-                callback(new LogOnInfo
+                Action<LogOnInfo> callback = logOnInfo =>
                 {
-                    Rooms = rooms,
-                    UserId = (string)_chat["id"]
+                    if (userCreated != null)
+                    {
+                        userCreated.Dispose();
+                    }
+
+                    if (logOn != null)
+                    {
+                        logOn.Dispose();
+                    }
+
+                    tcs.SetResult(logOnInfo);
+                };
+
+                // Attach events
+                logOn = _chat.On<IEnumerable<Room>>(ClientEvents.LogOn, rooms =>
+                {
+                    callback(new LogOnInfo
+                    {
+                        Rooms = rooms,
+                        UserId = (string)_chat["id"]
+                    });
                 });
-            });
 
-            userCreated = _chat.On(ClientEvents.UserCreated, () =>
-            {
-                callback(new LogOnInfo
+                userCreated = _chat.On(ClientEvents.UserCreated, () =>
                 {
-                    UserId = (string)_chat["id"]
+                    callback(new LogOnInfo
+                    {
+                        UserId = (string)_chat["id"]
+                    });
                 });
-            });
 
-            connect().ContinueWithNotComplete(tcs);
-
-            return tcs.Task;
+                // Join JabbR
+                return _chat.Invoke("Join");
+            }).Then(() => tcs.Task);
         }
 
         public Task<User> GetUserInfo()
@@ -295,210 +270,117 @@ namespace JabbR.Client
                 return;
             }
 
-            Action<Message, string> messageReceived = MessageReceived;
-
-            if (messageReceived != null)
+            _chat.On<Message, string>(ClientEvents.AddMessage, (message, room) =>
             {
-                _chat.On<Message, string>(ClientEvents.AddMessage, (message, room) =>
-                {
-                    Execute(() => messageReceived(message, room));
-                });
-            }
+                Execute(MessageReceived, messageReceived => messageReceived(message, room));
+            });
 
-            Action<IEnumerable<string>> loggedOut = LoggedOut;
-
-            if (loggedOut != null)
+            _chat.On<IEnumerable<string>>(ClientEvents.LogOut, rooms =>
             {
-                _chat.On<IEnumerable<string>>(ClientEvents.LogOut, rooms =>
-                {
-                    Execute(() => loggedOut(rooms));
-                });
-            }
+                Execute(LoggedOut, loggedOut => loggedOut(rooms));
+            });
 
-            Action<User, string, bool> userJoined = UserJoined;
-
-            if (userJoined != null)
+            _chat.On<User, string, bool>(ClientEvents.AddUser, (user, room, isOwner) =>
             {
-                _chat.On<User, string, bool>(ClientEvents.AddUser, (user, room, isOwner) =>
-                {
-                    Execute(() => userJoined(user, room, isOwner));
-                });
-            }
+                Execute(UserJoined, userJoined => userJoined(user, room, isOwner));
+            });
 
-            Action<User, string> userLeft = UserLeft;
-
-            if (userLeft != null)
+            _chat.On<User, string>(ClientEvents.Leave, (user, room) =>
             {
-                _chat.On<User, string>(ClientEvents.Leave, (user, room) =>
-                {
-                    Execute(() => userLeft(user, room));
-                });
-            }
+                Execute(UserLeft, userLeft => userLeft(user, room));
+            });
 
-            Action<string> kicked = Kicked;
-
-            if (kicked != null)
+            _chat.On<string>(ClientEvents.Kick, room =>
             {
-                _chat.On<string>(ClientEvents.Kick, room =>
-                {
-                    Execute(() => kicked(room));
-                });
-            }
+                Execute(Kicked, kicked => kicked(room));
+            });
 
-            Action<Room, int> roomCountChanged = RoomCountChanged;
-
-            if (roomCountChanged != null)
+            _chat.On<Room, int>(ClientEvents.UpdateRoomCount, (room, count) =>
             {
-                _chat.On<Room, int>(ClientEvents.UpdateRoomCount, (room, count) =>
-                {
-                    Execute(() => roomCountChanged(room, count));
-                });
-            }
+                Execute(RoomCountChanged, roomCountChanged => roomCountChanged(room, count));
+            });
 
-            Action<User> userActivityChanged = UserActivityChanged;
-
-            if (userActivityChanged != null)
+            _chat.On<User>(ClientEvents.UpdateActivity, user =>
             {
-                _chat.On<User>(ClientEvents.UpdateActivity, user =>
-                {
-                    Execute(() => userActivityChanged(user));
-                });
-            }
+                Execute(UserActivityChanged, userActivityChanged => userActivityChanged(user));
+            });
 
-            Action<string, string, string> privateMessage = PrivateMessage;
-
-            if (privateMessage != null)
+            _chat.On<string, string, string>(ClientEvents.SendPrivateMessage, (from, to, message) =>
             {
-                _chat.On<string, string, string>(ClientEvents.SendPrivateMessage, (from, to, message) =>
-                {
-                    Execute(() => privateMessage(from, to, message));
-                });
-            }
+                Execute(PrivateMessage, privateMessage => privateMessage(from, to, message));
+            });
 
-            Action<IEnumerable<User>> usersInactive = UsersInactive;
-
-            if (usersInactive != null)
+            _chat.On<IEnumerable<User>>(ClientEvents.MarkInactive, (users) =>
             {
-                _chat.On<IEnumerable<User>>(ClientEvents.MarkInactive, (users) =>
-                {
-                    Execute(() => usersInactive(users));
-                });
-            }
+                Execute(UsersInactive, usersInactive => usersInactive(users));
+            });
 
-            Action<User, string> userTyping = UserTyping;
-
-            if (userTyping != null)
+            _chat.On<User, string>(ClientEvents.SetTyping, (user, room) =>
             {
-                _chat.On<User, string>(ClientEvents.SetTyping, (user, room) =>
-                {
-                    Execute(() => userTyping(user, room));
-                });
-            }
+                Execute(UserTyping, userTyping => userTyping(user, room));
+            });
 
-            Action<User, string> gravatarChanged = GravatarChanged;
 
-            if (gravatarChanged != null)
+            _chat.On<User, string>(ClientEvents.GravatarChanged, (user, room) =>
             {
-                _chat.On<User, string>(ClientEvents.GravatarChanged, (user, room) =>
-                {
-                    Execute(() => gravatarChanged(user, room));
-                });
-            }
+                Execute(GravatarChanged, gravatarChanged => gravatarChanged(user, room));
+            });
 
-            Action<string, string, string> meMessageReceived = MeMessageReceived;
-
-            if (meMessageReceived != null)
+            _chat.On<string, string, string>(ClientEvents.MeMessageReceived, (user, content, room) =>
             {
-                _chat.On<string, string, string>(ClientEvents.MeMessageReceived, (user, content, room) =>
-                {
-                    Execute(() => meMessageReceived(user, content, room));
-                });
-            }
+                Execute(MeMessageReceived, meMessageReceived => meMessageReceived(user, content, room));
+            });
 
-            Action<string, User, string> usernameChanged = UsernameChanged;
-
-            if (usernameChanged != null)
+            _chat.On<string, User, string>(ClientEvents.UsernameChanged, (oldUserName, user, room) =>
             {
-                _chat.On<string, User, string>(ClientEvents.UsernameChanged, (oldUserName, user, room) =>
-                {
-                    Execute(() => usernameChanged(oldUserName, user, room));
-                });
-            }
+                Execute(UsernameChanged, usernameChanged => usernameChanged(oldUserName, user, room));
+            });
 
-            Action<User, string> noteChanged = NoteChanged;
-
-            if (noteChanged != null)
+            _chat.On<User, string>(ClientEvents.NoteChanged, (user, room) =>
             {
-                _chat.On<User, string>(ClientEvents.NoteChanged, (user, room) =>
-                {
-                    Execute(() => noteChanged(user, room));
-                });
-            }
+                Execute(NoteChanged, noteChanged => noteChanged(user, room));
+            });
 
-            Action<User, string> flagChanged = FlagChanged;
-
-            if (flagChanged != null)
+            _chat.On<User, string>(ClientEvents.FlagChanged, (user, room) =>
             {
-                _chat.On<User, string>(ClientEvents.FlagChanged, (user, room) =>
-                {
-                    Execute(() => flagChanged(user, room));
-                });
-            }
+                Execute(FlagChanged, flagChanged => flagChanged(user, room));
+            });
 
-            Action<Room> topicChanged = TopicChanged;
-
-            if (topicChanged != null)
+            _chat.On<Room>(ClientEvents.TopicChanged, (room) =>
             {
-                _chat.On<Room>(ClientEvents.TopicChanged, (room) =>
-                {
-                    Execute(() => topicChanged(room));
-                });
-            }
+                Execute(TopicChanged, topicChanged => topicChanged(room));
+            });
 
-            Action<User, string> ownerAdded = OwnerAdded;
-
-            if (ownerAdded != null)
+            _chat.On<User, string>(ClientEvents.OwnerAdded, (user, room) =>
             {
-                _chat.On<User, string>(ClientEvents.OwnerAdded, (user, room) =>
-                {
-                    Execute(() => ownerAdded(user, room));
-                });
-            }
+                Execute(OwnerAdded, ownerAdded => ownerAdded(user, room));
+            });
 
-            Action<User, string> ownerRemoved = OwnerRemoved;
-
-            if (ownerRemoved != null)
+            _chat.On<User, string>(ClientEvents.OwnerRemoved, (user, room) =>
             {
-                _chat.On<User, string>(ClientEvents.OwnerRemoved, (user, room) =>
-                {
-                    Execute(() => ownerRemoved(user, room));
-                });
-            }
+                Execute(OwnerRemoved, ownerRemoved => ownerRemoved(user, room));
+            });
 
-            Action<string, string, string> addMessageContent = AddMessageContent;
-
-            if (AddMessageContent != null)
+            _chat.On<string, string, string>(ClientEvents.AddMessageContent, (messageId, extractedContent, roomName) =>
             {
-                _chat.On<string, string, string>(ClientEvents.AddMessageContent, (messageId, extractedContent, roomName) =>
-                {
-                    Execute(() => addMessageContent(messageId, extractedContent, roomName));
-                });
-            }
+                Execute(AddMessageContent, addMessageContent => addMessageContent(messageId, extractedContent, roomName));
+            });
 
-            Action<Room> joinedRoom = JoinedRoom;
-
-            if (joinedRoom != null)
+            _chat.On<Room>(ClientEvents.JoinRoom, (room) =>
             {
-                _chat.On<Room>(ClientEvents.JoinRoom, (room) =>
-                {
-                    Execute(() => joinedRoom(room));
-                });
-            }
+                Execute(JoinedRoom, joinedRoom => joinedRoom(room));
+            });
         }
 
-        private static void Execute(Action action)
+        private static void Execute<T>(T handlers, Action<T> action) where T : class
         {
-            Task.Factory.StartNew(() => action()).Catch();
+            Task.Factory.StartNew(() =>
+            {
+                if (handlers != null)
+                {
+                    action(handlers);
+                }
+            }).Catch();
         }
 
         private Task SendCommand(string command, params object[] args)

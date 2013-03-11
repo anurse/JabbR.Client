@@ -1,5 +1,7 @@
 ﻿using System;
-using System.Diagnostics;
+using System.Net;
+using System.Threading;
+
 using JabbR.Client.Models;
 
 namespace JabbR.Client.Sample
@@ -12,6 +14,9 @@ namespace JabbR.Client.Sample
             string roomName = "test";
             string userName = "testclient";
             string password = "password";
+
+            // this might be needed in some cases
+            //ServicePointManager.DefaultConnectionLimit = 100;
 
             var client = new JabbRClient(server);
 
@@ -35,6 +40,8 @@ namespace JabbR.Client.Sample
             {
                 Console.WriteLine("*PRIVATE* {0} -> {1} ", from, message);
             };
+
+            var reset = new ManualResetEventSlim();
 
             // Connect to chat
             client.Connect(userName, password).ContinueWith(task =>
@@ -61,7 +68,7 @@ namespace JabbR.Client.Sample
                 Console.WriteLine(myInfo.Status);
                 Console.WriteLine(myInfo.Country);
 
-                
+
                 client.JoinRoom(roomName);
 
                 Console.WriteLine();
@@ -115,9 +122,11 @@ namespace JabbR.Client.Sample
                 {
                     client.Disconnect();
                 });
+
+                reset.Set();
             });
 
-            Console.ReadKey();
+            reset.Wait();
         }
     }
 }
