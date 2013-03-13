@@ -37,8 +37,7 @@ namespace JabbR.Client
             return request.GetHttpRequestStreamAsync()
                 .Then(stream => stream.WriteAsync(contentBytes).Then(() => stream.Dispose()))
                 .Then(() => request.GetHttpResponseAsync())
-                .Then(webResponse => {
-                    var response = (HttpWebResponse)webResponse;
+                .Then(response => {
                     var respStatusCode = response.StatusCode;
                     
                     if (respStatusCode < HttpStatusCode.OK || respStatusCode > (HttpStatusCode)299)
